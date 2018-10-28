@@ -8,6 +8,8 @@ import (
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/rndd/discord-bot/gitlab"
+	"github.com/rndd/discord-bot/tracker"
 )
 
 // Variables used for command line parameters
@@ -16,7 +18,6 @@ var (
 )
 
 func init() {
-
 	flag.StringVar(&Token, "t", "", "Bot Token")
 	flag.Parse()
 }
@@ -64,16 +65,26 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	tasksIds := findTasksIds(m.Content)
+	response := findSomethingAndPrepareResponse(m.Content)
+	if len(response) > 0 {
+		fmt.Printf("C Id: %s. M id: %s. Msg: %s\n", m.ChannelID, m.Message.ID, m.Content)
+		_, err := s.ChannelMessageSend(m.ChannelID, response)
 
-	// If the message is "ping" reply with "Pong!"
-	if thereIsTasks(tasksIds) {
-		fmt.Printf("C Id: %s. M id: %s. Msg: %s. Tasks %v \n", m.ChannelID, m.Message.ID, m.Content, tasksIds)
-
-		_, err := s.ChannelMessageSend(m.ChannelID, getTextForTasks(tasksIds))
 		if err != nil {
-			fmt.Println("Error: ", err)
+			fmt.Println("Error in sending: ", err)
 			return
 		}
 	}
+
+}
+
+func findSomethingAndPrepareResponse(msg string) string {
+	tasksIds := tracker.FindTasksIds(msg)
+	mrIds := gitlab.FindMRIds(msg)
+	response := ""
+	if len(tasksIds) > 0 || len(mrIds) > 0 {
+		response += gitlab.GetTextForMr(mrIds) + "\n" + tracker.GetTextForTasks(tasksIds)
+	}
+
+	return response
 }
